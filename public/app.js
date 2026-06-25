@@ -1,0 +1,226 @@
+const elements = {
+  banner: document.getElementById("statusBanner"),
+  refreshButton: document.getElementById("refreshButton"),
+  host: document.getElementById("host"),
+  network: document.getElementById("network"),
+  uptime: document.getElementById("uptime"),
+  load: document.getElementById("load"),
+  temperature: document.getElementById("temperature"),
+  memoryBar: document.getElementById("memoryBar"),
+  memoryText: document.getElementById("memoryText"),
+  diskList: document.getElementById("diskList"),
+  pluginVersion: document.getElementById("pluginVersion"),
+  nodeVersion: document.getElementById("nodeVersion"),
+  processUptime: document.getElementById("processUptime"),
+  powerHelp: document.getElementById("powerHelp"),
+  rebootButton: document.getElementById("rebootButton"),
+  shutdownButton: document.getElementById("shutdownButton"),
+  piperStatus: document.getElementById("piperStatus"),
+  piperLastAction: document.getElementById("piperLastAction"),
+  installPiperButton: document.getElementById("installPiperButton"),
+};
+
+let refreshTimer = null;
+
+elements.refreshButton.addEventListener("click", refreshStatus);
+elements.rebootButton.addEventListener("click", () => runAction("reboot"));
+elements.shutdownButton.addEventListener("click", () => runAction("shutdown"));
+elements.installPiperButton.addEventListener("click", () => runSupportAction("install-piper"));
+
+refreshStatus();
+
+async function refreshStatus() {
+  try {
+    const status = await getJson("../plugins/signalk-ajrm-marine-pi-controller/status");
+    renderStatus(status);
+    setBanner(`Updated ${new Date(status.timestamp).toLocaleTimeString()}`);
+    scheduleRefresh(status.controls?.statusRefreshSeconds || 5);
+  } catch (error) {
+    setBanner(error.message, true);
+    scheduleRefresh(10);
+  }
+}
+
+function renderStatus(status) {
+  elements.host.textContent = `${status.hostname} (${status.platform})`;
+  elements.network.textContent = formatNetwork(status.network);
+  elements.uptime.textContent = formatDuration(status.uptimeSeconds);
+  elements.load.textContent = (status.loadAverage || [])
+    .map((value) => Number(value).toFixed(2))
+    .join(" / ");
+  elements.temperature.textContent = status.temperature?.celsius
+    ? `${status.temperature.celsius.toFixed(1)} C`
+    : "Not available";
+
+  const memory = status.memory || {};
+  const used = Number(memory.usedBytes || 0);
+  const total = Number(memory.totalBytes || 0);
+  const percent = total > 0 ? Math.round((used / total) * 100) : 0;
+  elements.memoryBar.style.width = `${percent}%`;
+  elements.memoryText.textContent = `${formatBytes(used)} used of ${formatBytes(total)} (${percent}%)`;
+
+  renderDisks(status.disks || []);
+  elements.pluginVersion.textContent = `${status.plugin} v${status.version}`;
+  elements.nodeVersion.textContent = status.process?.node || "-";
+  elements.processUptime.textContent = formatDuration(
+    status.process?.uptimeSeconds || 0,
+  );
+
+  const powerEnabled = Boolean(status.controls?.powerEnabled);
+  elements.powerHelp.textContent = powerEnabled
+    ? "Restarting or shutting down requires confirmation."
+    : "Power controls are disabled in the plugin configuration.";
+  elements.rebootButton.disabled = !powerEnabled;
+  elements.shutdownButton.disabled = !powerEnabled;
+
+  const supportEnabled = Boolean(status.controls?.supportEnabled);
+  renderPiperStatus(status.support?.piper || null);
+  elements.installPiperButton.disabled = !supportEnabled || status.support?.piper?.ok === true;
+}
+
+function renderDisks(disks) {
+  if (!disks.length) {
+    elements.diskList.innerHTML = "<p>No disk paths configured.</p>";
+    return;
+  }
+  elements.diskList.innerHTML = disks
+    .map((disk) => {
+      if (disk.error) {
+        return `<div class="disk"><div class="disk-header"><span class="disk-path">${escapeHtml(disk.path)}</span><span class="disk-detail">${escapeHtml(disk.error)}</span></div></div>`;
+      }
+      const percent = Number(disk.usedPercent || 0);
+      return `<div class="disk">
+        <div class="disk-header">
+          <span class="disk-path">${escapeHtml(disk.path)}</span>
+          <span class="disk-detail">${formatBytes(disk.availableBytes)} free of ${formatBytes(disk.totalBytes)} (${percent}% used)</span>
+        </div>
+        <div class="meter"><span style="width:${percent}%"></span></div>
+      </div>`;
+    })
+    .join("");
+}
+
+async function runAction(action) {
+  const label = action === "shutdown" ? "shut down" : "restart";
+  if (!window.confirm(`Are you sure you want to ${label} the Pi now?`)) return;
+
+  try {
+    const result = await postJson(
+      `../plugins/signalk-ajrm-marine-pi-controller/actions/${action}`,
+      { confirmed: true },
+    );
+    setBanner(`${action} requested at ${new Date(result.startedAt).toLocaleTimeString()}`);
+  } catch (error) {
+    setBanner(error.message, true);
+  }
+}
+
+async function runSupportAction(action) {
+  const label = action === "install-piper" ? "install Piper" : action;
+  if (!window.confirm(`Are you sure you want to ${label} on this Pi now?`)) return;
+
+  try {
+    const result = await postJson(
+      `../plugins/signalk-ajrm-marine-pi-controller/actions/${action}`,
+      { confirmed: true },
+    );
+    setBanner(`${label} requested at ${new Date(result.startedAt).toLocaleTimeString()}`);
+    scheduleRefresh(2);
+  } catch (error) {
+    setBanner(error.message, true);
+  }
+}
+
+function renderPiperStatus(piper) {
+  if (!piper) {
+    elements.piperStatus.textContent = "Piper status unavailable.";
+    elements.piperLastAction.textContent = "";
+    return;
+  }
+  elements.piperStatus.textContent = piper.ok
+    ? `Piper ready: ${piper.executable?.path || "piper"} with ${piper.voice?.id || "voice"}`
+    : "Piper is not ready for AJRM Marine Audio.";
+  const last = piper.lastAction;
+  elements.piperLastAction.textContent = last
+    ? `Last action: ${last.status} at ${formatTime(last.finishedAt || last.startedAt)}`
+    : "";
+}
+
+async function getJson(url) {
+  const response = await fetch(url, { cache: "no-store" });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  return body;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const responseBody = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(responseBody.error || `HTTP ${response.status}`);
+  }
+  return responseBody;
+}
+
+function setBanner(message, isError = false) {
+  elements.banner.textContent = message;
+  elements.banner.classList.toggle("error", isError);
+}
+
+function scheduleRefresh(seconds) {
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(refreshStatus, Math.max(1, seconds) * 1000);
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Number(totalSeconds || 0));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function formatNetwork(network) {
+  const primary = network?.primary;
+  if (!primary?.address) return "No IPv4 address found";
+  const typeLabel =
+    primary.type === "ethernet"
+      ? "Ethernet"
+      : primary.type === "wifi"
+        ? "Wi-Fi"
+        : "Network";
+  return `${typeLabel} ${primary.address} (${primary.name})`;
+}
+
+function formatTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleTimeString();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}

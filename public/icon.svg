@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="AJRM Marine Pi Controller">
+  <rect width="120" height="120" rx="24" fill="#0f172a"/>
+  <rect x="23" y="27" width="74" height="66" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="4"/>
+  <rect x="38" y="42" width="44" height="30" rx="5" fill="#020617" stroke="#64748b" stroke-width="3"/>
+  <circle cx="48" cy="57" r="5" fill="#22c55e"/>
+  <circle cx="64" cy="57" r="5" fill="#facc15"/>
+  <circle cx="80" cy="57" r="5" fill="#ef4444"/>
+  <path d="M43 94v9M60 94v9M77 94v9M43 17v10M60 17v10M77 17v10M13 44h10M13 61h10M13 78h10M97 44h10M97 61h10M97 78h10" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M60 78c8 0 14-6 14-14 0-5-3-10-7-12v12h-14V52c-4 2-7 7-7 12 0 8 6 14 14 14z" fill="#38bdf8"/>
+</svg>

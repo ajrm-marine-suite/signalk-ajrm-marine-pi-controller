@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AJRM Marine Pi Controller</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">Signal K</p>
+          <h1>AJRM Marine Pi Controller</h1>
+        </div>
+        <button id="refreshButton" type="button">Refresh</button>
+      </header>
+
+      <section id="statusBanner" class="banner">Loading...</section>
+
+      <section class="grid" aria-live="polite">
+        <article class="tile">
+          <h2>Pi</h2>
+          <dl>
+            <div><dt>Host</dt><dd id="host">-</dd></div>
+            <div><dt>Network</dt><dd id="network">-</dd></div>
+            <div><dt>Uptime</dt><dd id="uptime">-</dd></div>
+            <div><dt>Load</dt><dd id="load">-</dd></div>
+            <div><dt>CPU Temp</dt><dd id="temperature">-</dd></div>
+          </dl>
+        </article>
+
+        <article class="tile">
+          <h2>Memory</h2>
+          <div class="meter"><span id="memoryBar"></span></div>
+          <p id="memoryText">-</p>
+        </article>
+
+        <article class="tile wide">
+          <h2>Disk Space</h2>
+          <div id="diskList" class="disk-list"></div>
+        </article>
+
+        <article class="tile">
+          <h2>Signal K</h2>
+          <dl>
+            <div><dt>Plugin</dt><dd id="pluginVersion">-</dd></div>
+            <div><dt>Node</dt><dd id="nodeVersion">-</dd></div>
+            <div><dt>Process</dt><dd id="processUptime">-</dd></div>
+          </dl>
+        </article>
+
+        <article class="tile">
+          <h2>Audio Support</h2>
+          <p id="piperStatus">Checking Piper status.</p>
+          <p id="piperLastAction" class="small-note"></p>
+          <div class="actions">
+            <button id="installPiperButton" type="button">Install Piper</button>
+          </div>
+        </article>
+
+        <article class="tile danger-zone">
+          <h2>Power</h2>
+          <p id="powerHelp">Restarting or shutting down requires confirmation.</p>
+          <div class="actions">
+            <button id="rebootButton" type="button">Restart Pi</button>
+            <button id="shutdownButton" type="button" class="danger">Shut Down Pi</button>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

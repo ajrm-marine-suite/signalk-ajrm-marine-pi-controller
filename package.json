@@ -1,0 +1,45 @@
+{
+  "name": "signalk-ajrm-marine-pi-controller",
+  "version": "0.5.0",
+  "description": "Raspberry Pi control and dependency helper for AJRM Marine Suite.",
+  "main": "plugin/index.js",
+  "scripts": {
+    "test": "node --check plugin/index.js && node --check public/app.js"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-webapp",
+    "raspberry-pi",
+    "monitoring",
+    "signal-k",
+    "signalk",
+    "ajrm-marine-suite",
+    "marine",
+    "navigation"
+  ],
+  "author": "Anthony McDonald, with assistance from William McAusland",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller/issues"
+  },
+  "homepage": "https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "plugin",
+    "public",
+    "scripts",
+    "README.md",
+    "LICENSE"
+  ],
+  "signalk-plugin-enabled-by-default": true,
+  "signalk": {
+    "displayName": "AJRM Marine Pi Controller",
+    "appIcon": "./icon-120.png"
+  }
+}

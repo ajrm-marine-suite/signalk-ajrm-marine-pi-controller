@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Update the public GitHub install command to use HTTPS for fresh Pi installs.
+
 ## 0.5.1
 
 - Rename telemetry capture description to AJRM Marine Logger/Capture/Snapshot naming.

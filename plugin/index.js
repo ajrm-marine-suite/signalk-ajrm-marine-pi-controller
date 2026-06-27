@@ -110,7 +110,7 @@ module.exports = function ajrmMarinePiController(app) {
         type: "boolean",
         title: "Publish system telemetry to Signal K",
         description:
-          "Publishes Raspberry Pi / host telemetry under vessels.self.plugins.ajrmMarinePiController.system so CapturePlus and AJRM Marine Snapshot can capture it.",
+          "Publishes Raspberry Pi / host telemetry under vessels.self.plugins.ajrmMarinePiController.system so AJRM Marine Logger, Capture, and Snapshot can capture it.",
         default: true,
       },
       publishIntervalSeconds: {

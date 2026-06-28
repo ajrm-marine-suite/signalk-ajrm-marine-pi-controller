@@ -21,7 +21,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.3 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.4 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -41,8 +41,10 @@ journal so UPS shutdown tests can be reviewed after reboot.
 - **Enable support installers**: allows confirmed support actions such as
   installing Piper for AJRM Marine Audio.
 - **Piper install command**: defaults to the package's bundled
-  `scripts/install-piper.sh`, which installs Piper and the default
-  `en_GB-alan-medium` voice on 64-bit Raspberry Pi OS.
+  `scripts/install-piper.sh`, which installs the latest Piper GitHub release
+  and the default `en_GB-alan-medium` voice on 64-bit Linux. Set
+  `PIPER_VERSION`, `PIPER_ASSET`, or `PIPER_DOWNLOAD_URL` in the command only
+  when deliberately testing or pinning a specific release.
 - **Reboot command**: defaults to `sudo /sbin/reboot`.
 - **Shutdown command**: defaults to `sudo /sbin/shutdown -h now`.
 - **Power action grace period**: defaults to ten seconds. AJRM Marine Pi Controller

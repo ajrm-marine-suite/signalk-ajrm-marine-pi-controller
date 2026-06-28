@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- Make the bundled Piper installer use the latest GitHub Piper release by
+  default and resolve the correct Linux ARM64 archive from the release assets.
+
 ## 0.5.3
 
 - Add Signal K AppStore utility category metadata.

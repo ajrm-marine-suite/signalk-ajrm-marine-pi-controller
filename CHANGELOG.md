@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5
+
+- Fix the Piper installer cleanup trap so a successful install is not reported
+  as failed after the temporary directory is removed.
+
 ## 0.5.4
 
 - Make the bundled Piper installer use the latest GitHub Piper release by

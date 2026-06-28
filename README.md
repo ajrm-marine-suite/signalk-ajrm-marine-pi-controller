@@ -21,7 +21,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.4 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.5 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 

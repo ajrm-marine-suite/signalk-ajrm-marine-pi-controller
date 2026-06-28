@@ -7,6 +7,7 @@ PIPER_VOICES_DIR="${PIPER_VOICES_DIR:-$HOME/piper-voices}"
 PIPER_VOICE="${PIPER_VOICE:-en_GB-alan-medium}"
 PIPER_ASSET="${PIPER_ASSET:-}"
 PIPER_DOWNLOAD_URL="${PIPER_DOWNLOAD_URL:-}"
+PIPER_TMP_DIR=""
 
 log() {
   printf '==> %s\n' "$*"
@@ -93,7 +94,8 @@ install_piper() {
 
   log "Finding Piper ${PIPER_VERSION} release for ${arch}"
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  PIPER_TMP_DIR="$tmp"
+  trap 'if [[ -n "${PIPER_TMP_DIR:-}" ]]; then rm -rf "$PIPER_TMP_DIR"; fi' EXIT
   release_json="$tmp/piper-release.json"
   curl -fsSL "$(release_api_url)" -o "$release_json"
   release_name="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); console.log(r.tag_name || r.name || "unknown")' "$release_json")"

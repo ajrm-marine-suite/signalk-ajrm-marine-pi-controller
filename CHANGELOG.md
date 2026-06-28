@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3
+
+- Add Signal K AppStore utility category metadata.
+
 ## 0.5.2
 
 - Update the public GitHub install command to use HTTPS for fresh Pi installs.

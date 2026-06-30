@@ -21,7 +21,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.5 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.6 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -30,6 +30,9 @@ Open Signal K's webapps page and choose **AJRM Marine Pi Controller**.
 ## Signal K Config
 
 The plugin config includes:
+
+Version `0.5.6` installs the default Piper voice catalogue in nested voice
+directories: Alan, Alba, and Jenny Dioco.
 
 Version `1.2.5` adds Piper readiness reporting and a confirmed support action
 for installing Piper and the default voice for AJRM Marine Audio.
@@ -42,7 +45,10 @@ journal so UPS shutdown tests can be reviewed after reboot.
   installing Piper for AJRM Marine Audio.
 - **Piper install command**: defaults to the package's bundled
   `scripts/install-piper.sh`, which installs the latest Piper GitHub release
-  and the default `en_GB-alan-medium` voice on 64-bit Linux. Set
+  and the default British English voice set on 64-bit Linux. Voice models are
+  stored as `~/piper-voices/<voice-id>/<voice-id>.onnx`, currently including
+  `en_GB-alan-medium`, `en_GB-alba-medium`, and
+  `en_GB-jenny_dioco-medium`. Set
   `PIPER_VERSION`, `PIPER_ASSET`, or `PIPER_DOWNLOAD_URL` in the command only
   when deliberately testing or pinning a specific release.
 - **Reboot command**: defaults to `sudo /sbin/reboot`.

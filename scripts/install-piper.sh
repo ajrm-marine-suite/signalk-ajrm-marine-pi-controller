@@ -4,10 +4,16 @@ set -Eeuo pipefail
 PIPER_VERSION="${PIPER_VERSION:-latest}"
 PIPER_DIR="${PIPER_DIR:-/opt/piper}"
 PIPER_VOICES_DIR="${PIPER_VOICES_DIR:-$HOME/piper-voices}"
-PIPER_VOICE="${PIPER_VOICE:-en_GB-alan-medium}"
 PIPER_ASSET="${PIPER_ASSET:-}"
 PIPER_DOWNLOAD_URL="${PIPER_DOWNLOAD_URL:-}"
 PIPER_TMP_DIR=""
+PIPER_VOICES_BASE_URL="${PIPER_VOICES_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0}"
+
+PIPER_VOICES=(
+  "en_GB-alan-medium:en/en_GB/alan/medium"
+  "en_GB-alba-medium:en/en_GB/alba/medium"
+  "en_GB-jenny_dioco-medium:en/en_GB/jenny_dioco/medium"
+)
 
 log() {
   printf '==> %s\n' "$*"
@@ -21,6 +27,33 @@ require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'ERROR: required command not found: %s\n' "$1" >&2
     exit 1
+  fi
+}
+
+install_voice() {
+  local voice_id voice_path voice_dir model_path metadata_path
+  voice_id="$1"
+  voice_path="$2"
+  voice_dir="$PIPER_VOICES_DIR/$voice_id"
+  model_path="$voice_dir/$voice_id.onnx"
+  metadata_path="$model_path.json"
+
+  mkdir -p "$voice_dir"
+
+  if [[ -f "$PIPER_VOICES_DIR/$voice_id.onnx" && ! -f "$model_path" ]]; then
+    mv "$PIPER_VOICES_DIR/$voice_id.onnx" "$model_path"
+  fi
+  if [[ -f "$PIPER_VOICES_DIR/$voice_id.onnx.json" && ! -f "$metadata_path" ]]; then
+    mv "$PIPER_VOICES_DIR/$voice_id.onnx.json" "$metadata_path"
+  fi
+
+  if [[ ! -f "$model_path" ]]; then
+    curl -fsSL "$PIPER_VOICES_BASE_URL/$voice_path/$voice_id.onnx?download=true" \
+      -o "$model_path"
+  fi
+  if [[ ! -f "$metadata_path" ]]; then
+    curl -fsSL "$PIPER_VOICES_BASE_URL/$voice_path/$voice_id.onnx.json?download=true" \
+      -o "$metadata_path"
   fi
 }
 
@@ -107,12 +140,11 @@ install_piper() {
   sudo tar -xzf "$tmp/piper.tar.gz" -C "$PIPER_DIR" --strip-components=1
   sudo ln -sf "$PIPER_DIR/piper" /usr/local/bin/piper
 
-  log "Installing Piper voice ${PIPER_VOICE} into ${PIPER_VOICES_DIR}"
+  log "Installing Piper voices into ${PIPER_VOICES_DIR}"
   mkdir -p "$PIPER_VOICES_DIR"
-  curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/${PIPER_VOICE}.onnx" \
-    -o "$PIPER_VOICES_DIR/${PIPER_VOICE}.onnx"
-  curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/medium/${PIPER_VOICE}.onnx.json" \
-    -o "$PIPER_VOICES_DIR/${PIPER_VOICE}.onnx.json"
+  for voice_spec in "${PIPER_VOICES[@]}"; do
+    install_voice "${voice_spec%%:*}" "${voice_spec#*:}"
+  done
 
   log "Piper install complete"
 }

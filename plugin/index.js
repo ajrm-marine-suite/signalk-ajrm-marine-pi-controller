@@ -6,6 +6,11 @@ const packageInfo = require("../package.json");
 
 const PACKAGE_ROOT = path.dirname(__dirname);
 const DEFAULT_PIPER_INSTALL_COMMAND = `bash ${shellQuote(path.join(PACKAGE_ROOT, "scripts", "install-piper.sh"))}`;
+const DEFAULT_PIPER_VOICES = [
+  "en_GB-alan-medium",
+  "en_GB-alba-medium",
+  "en_GB-jenny_dioco-medium",
+];
 
 module.exports = function ajrmMarinePiController(app) {
   const plugin = {};
@@ -538,19 +543,25 @@ module.exports = function ajrmMarinePiController(app) {
   function readPiperStatus() {
     const piper = checkExecutable("piper");
     const voicesDir = path.join(os.homedir(), "piper-voices");
-    const voice = "en_GB-alan-medium";
-    const voiceFile = path.join(voicesDir, `${voice}.onnx`);
-    const voiceJson = `${voiceFile}.json`;
-    const voiceReady = fs.existsSync(voiceFile) && fs.existsSync(voiceJson);
-    return {
-      ok: piper.status === "ok" && voiceReady,
-      executable: piper,
-      voice: {
+    const voices = DEFAULT_PIPER_VOICES.map((voice) => {
+      const nestedVoiceFile = path.join(voicesDir, voice, `${voice}.onnx`);
+      const flatVoiceFile = path.join(voicesDir, `${voice}.onnx`);
+      const voiceFile = fs.existsSync(nestedVoiceFile) ? nestedVoiceFile : flatVoiceFile;
+      const voiceJson = `${voiceFile}.json`;
+      const voiceReady = fs.existsSync(voiceFile) && fs.existsSync(voiceJson);
+      return {
         status: voiceReady ? "ok" : "missing",
         id: voice,
         file: voiceFile,
         metadataFile: voiceJson,
-      },
+      };
+    });
+    const voicesReady = voices.every((voice) => voice.status === "ok");
+    return {
+      ok: piper.status === "ok" && voicesReady,
+      executable: piper,
+      voice: voices[0],
+      voices,
       installCommand: options.piperInstallCommand,
       lastAction: lastSupportAction?.action === "install-piper" ? lastSupportAction : null,
     };

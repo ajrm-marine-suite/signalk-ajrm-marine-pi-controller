@@ -1,6 +1,6 @@
 {
   "name": "signalk-ajrm-marine-pi-controller",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Raspberry Pi control and dependency helper for AJRM Marine Suite.",
   "main": "plugin/index.js",
   "scripts": {

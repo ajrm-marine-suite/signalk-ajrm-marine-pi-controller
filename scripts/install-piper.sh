@@ -10,8 +10,8 @@ PIPER_TMP_DIR=""
 PIPER_VOICES_BASE_URL="${PIPER_VOICES_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0}"
 
 PIPER_VOICES=(
-  "en_GB-alan-medium:en/en_GB/alan/medium"
   "en_GB-alba-medium:en/en_GB/alba/medium"
+  "en_GB-alan-medium:en/en_GB/alan/medium"
   "en_GB-jenny_dioco-medium:en/en_GB/jenny_dioco/medium"
 )
 

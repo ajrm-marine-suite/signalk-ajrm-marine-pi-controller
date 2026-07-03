@@ -7,8 +7,8 @@ const packageInfo = require("../package.json");
 const PACKAGE_ROOT = path.dirname(__dirname);
 const DEFAULT_PIPER_INSTALL_COMMAND = `bash ${shellQuote(path.join(PACKAGE_ROOT, "scripts", "install-piper.sh"))}`;
 const DEFAULT_PIPER_VOICES = [
-  "en_GB-alan-medium",
   "en_GB-alba-medium",
+  "en_GB-alan-medium",
   "en_GB-jenny_dioco-medium",
 ];
 

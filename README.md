@@ -21,7 +21,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.7 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.8 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -120,3 +120,9 @@ requests require JSON:
 Raspberry Pi control and dependency helper for AJRM Marine Suite.
 
 Development assistance: OpenAI Codex helped with code generation, refactoring, and automated testing during the beta development cycle.
+## License and commercial use
+
+This software is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). You may use, study, share, and modify it under that licence. If you modify it and make it available to users over a network, the corresponding source code must also be made available under the AGPL.
+
+Commercial licensing is available by arrangement for organisations that want different terms.
+

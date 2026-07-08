@@ -26,6 +26,7 @@ const elements = {
 };
 
 let refreshTimer = null;
+let pendingPowerAction = null;
 
 elements.refreshButton.addEventListener("click", refreshStatus);
 elements.rebootButton.addEventListener("click", () => runAction("reboot"));
@@ -39,10 +40,18 @@ async function refreshStatus() {
   try {
     const status = await getJson("../plugins/signalk-ajrm-marine-pi-controller/status");
     renderStatus(status);
-    setBanner(`Updated ${new Date(status.timestamp).toLocaleTimeString()}`);
+    if (pendingPowerAction) {
+      setBanner(powerActionMessage(pendingPowerAction));
+    } else {
+      setBanner(`Updated ${new Date(status.timestamp).toLocaleTimeString()}`);
+    }
     scheduleRefresh(status.controls?.statusRefreshSeconds || 5);
   } catch (error) {
-    setBanner(error.message, true);
+    if (pendingPowerAction) {
+      setBanner(`${powerActionMessage(pendingPowerAction)} Waiting for the Pi to go offline or return.`);
+    } else {
+      setBanner(error.message, true);
+    }
     scheduleRefresh(10);
   }
 }
@@ -72,12 +81,7 @@ function renderStatus(status) {
     status.process?.uptimeSeconds || 0,
   );
 
-  const powerEnabled = Boolean(status.controls?.powerEnabled);
-  elements.powerHelp.textContent = powerEnabled
-    ? "Restarting or shutting down requires confirmation."
-    : "Power controls are disabled in the plugin configuration.";
-  elements.rebootButton.disabled = !powerEnabled;
-  elements.shutdownButton.disabled = !powerEnabled;
+  renderPowerControls(status);
 
   const supportEnabled = Boolean(status.controls?.supportEnabled);
   renderPiperStatus(status.support?.piper || null);
@@ -113,14 +117,74 @@ async function runAction(action) {
   if (!window.confirm(`Are you sure you want to ${label} the Pi now?`)) return;
 
   try {
+    pendingPowerAction = {
+      action,
+      status: "requesting",
+      startedAt: new Date().toISOString(),
+    };
+    renderPowerControls();
+    setBanner(powerActionMessage(pendingPowerAction));
     const result = await postJson(
       `../plugins/signalk-ajrm-marine-pi-controller/actions/${action}`,
       { confirmed: true },
     );
-    setBanner(`${action} requested at ${new Date(result.startedAt).toLocaleTimeString()}`);
+    pendingPowerAction = {
+      action,
+      status: "waiting",
+      startedAt: result.startedAt,
+      runAt: result.runAt,
+      graceSeconds: result.graceSeconds,
+    };
+    renderPowerControls();
+    setBanner(powerActionMessage(pendingPowerAction));
+    scheduleRefresh(1);
   } catch (error) {
+    pendingPowerAction = null;
+    renderPowerControls();
     setBanner(error.message, true);
   }
+}
+
+function renderPowerControls(status = null) {
+  const serverAction = status?.lastAction || null;
+  if (serverAction && ["waiting", "running"].includes(serverAction.status)) {
+    pendingPowerAction = serverAction;
+  }
+  const powerEnabled = status ? Boolean(status.controls?.powerEnabled) : true;
+  const active = pendingPowerAction;
+  const action = active?.action || "";
+  const waiting = active?.status === "waiting" || active?.status === "requesting";
+  const running = active?.status === "running";
+
+  if (!powerEnabled) {
+    elements.powerHelp.textContent = "Power controls are disabled in the plugin configuration.";
+  } else if (active) {
+    elements.powerHelp.textContent = powerActionMessage(active);
+  } else {
+    elements.powerHelp.textContent = "Restarting or shutting down requires confirmation.";
+  }
+
+  elements.rebootButton.disabled = !powerEnabled || Boolean(active);
+  elements.shutdownButton.disabled = !powerEnabled || Boolean(active);
+  elements.rebootButton.textContent =
+    action === "reboot" && (waiting || running) ? "Rebooting..." : "Restart Pi";
+  elements.shutdownButton.textContent =
+    action === "shutdown" && (waiting || running) ? "Shutting down..." : "Shut Down Pi";
+}
+
+function powerActionMessage(actionState) {
+  const action = actionState?.action === "shutdown" ? "shutdown" : "reboot";
+  const verb = action === "shutdown" ? "Shutting down" : "Rebooting";
+  if (actionState?.status === "requesting") {
+    return `${verb} request is being sent.`;
+  }
+  if (actionState?.status === "waiting" && actionState.runAt) {
+    return `${verb} at ${formatTime(actionState.runAt)}. Waiting for apps to close files.`;
+  }
+  if (actionState?.status === "running") {
+    return `${verb} now. The web page may stop responding.`;
+  }
+  return `${verb} requested.`;
 }
 
 async function runSupportAction(action) {

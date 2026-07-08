@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.12
+
+- Show explicit rebooting/shutting-down messages after confirmed Pi Controller
+  power actions and disable the power buttons while the action is pending.
+
 ## 0.5.11
 
 - Show Piper installer stdout/stderr in the Audio Support card while the action

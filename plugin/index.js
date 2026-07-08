@@ -12,6 +12,7 @@ const DEFAULT_PIPER_VOICES = [
   "en_GB-jenny_dioco-medium",
 ];
 const DEFAULT_RPI_CLONE_COMMAND = "sudo /usr/local/sbin/rpi-clone";
+const SUPPORT_ACTION_TIMEOUT_MS = 20 * 60 * 1000;
 
 module.exports = function ajrmMarinePiController(app) {
   const plugin = {};
@@ -549,13 +550,44 @@ module.exports = function ajrmMarinePiController(app) {
       });
       let stdout = "";
       let stderr = "";
+      let settled = false;
+      const updateOutput = () => {
+        if (lastSupportAction?.action === action && lastSupportAction.status === "running") {
+          lastSupportAction = {
+            ...lastSupportAction,
+            stdout,
+            stderr,
+          };
+        }
+      };
+      const timeout = setTimeout(() => {
+        settled = true;
+        const error = `${label} timed out after ${Math.round(SUPPORT_ACTION_TIMEOUT_MS / 60000)} minutes`;
+        lastSupportAction = {
+          ...lastSupportAction,
+          status: "failed",
+          finishedAt: new Date().toISOString(),
+          error,
+          stdout,
+          stderr,
+        };
+        child.kill("SIGTERM");
+        app.error(`[${plugin.id}] ${error}`);
+        app.setPluginStatus(`${label} failed: timed out`);
+      }, SUPPORT_ACTION_TIMEOUT_MS);
+      timeout.unref?.();
       child.stdout.on("data", (chunk) => {
         stdout = truncateBufferedText(stdout + chunk.toString());
+        updateOutput();
       });
       child.stderr.on("data", (chunk) => {
         stderr = truncateBufferedText(stderr + chunk.toString());
+        updateOutput();
       });
       child.on("error", (error) => {
+        clearTimeout(timeout);
+        if (settled) return;
+        settled = true;
         lastSupportAction = {
           ...lastSupportAction,
           status: "failed",
@@ -567,6 +599,9 @@ module.exports = function ajrmMarinePiController(app) {
         app.error(`[${plugin.id}] ${label} failed: ${error.stack || error.message}`);
       });
       child.on("close", (code, signal) => {
+        clearTimeout(timeout);
+        if (settled) return;
+        settled = true;
         const ok = code === 0;
         lastSupportAction = {
           ...lastSupportAction,

@@ -24,11 +24,26 @@ warn() {
   printf 'WARNING: %s\n' "$*" >&2
 }
 
+fail() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit "${2:-1}"
+}
+
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
-    printf 'ERROR: required command not found: %s\n' "$1" >&2
-    exit 1
+    fail "required command not found: $1"
   fi
+}
+
+require_noninteractive_sudo() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    return
+  fi
+  require_command sudo
+  if sudo -n true >/dev/null 2>&1; then
+    return
+  fi
+  fail "Pi Controller cannot install Piper from the web UI because sudo needs a password. The Signal K service cannot answer password prompts. Configure passwordless sudo for the documented installer commands, or run sudo -v in an SSH terminal before running the installer manually." 5
 }
 
 install_ffmpeg() {
@@ -40,14 +55,13 @@ install_ffmpeg() {
     log "FFmpeg is already installed: $(command -v ffmpeg)"
     return
   fi
-  require_command sudo
   if ! command -v apt-get >/dev/null 2>&1; then
     warn "FFmpeg is missing and apt-get is not available. Install FFmpeg manually, or set INSTALL_FFMPEG=0 to skip this check."
     exit 4
   fi
   log "Installing FFmpeg with apt-get"
-  sudo apt-get update
-  sudo apt-get install -y ffmpeg
+  sudo -n apt-get update
+  sudo -n apt-get install -y ffmpeg
 }
 
 install_voice() {
@@ -135,6 +149,7 @@ install_piper() {
   require_command node
   require_command tar
   require_command sudo
+  require_noninteractive_sudo
 
   arch="$(uname -m)"
   case "$arch" in
@@ -158,9 +173,9 @@ install_piper() {
 
   log "Installing Piper ${release_name} into ${PIPER_DIR}"
   curl -fsSL "$download_url" -o "$tmp/piper.tar.gz"
-  sudo mkdir -p "$PIPER_DIR"
-  sudo tar -xzf "$tmp/piper.tar.gz" -C "$PIPER_DIR" --strip-components=1
-  sudo ln -sf "$PIPER_DIR/piper" /usr/local/bin/piper
+  sudo -n mkdir -p "$PIPER_DIR"
+  sudo -n tar -xzf "$tmp/piper.tar.gz" -C "$PIPER_DIR" --strip-components=1
+  sudo -n ln -sf "$PIPER_DIR/piper" /usr/local/bin/piper
 
   log "Installing Piper voices into ${PIPER_VOICES_DIR}"
   mkdir -p "$PIPER_VOICES_DIR"

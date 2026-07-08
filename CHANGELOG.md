@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.11
+
+- Show Piper installer stdout/stderr in the Audio Support card while the action
+  is running and after it finishes.
+- Fail the bundled Piper installer early with a clear message when the Signal K
+  service cannot use `sudo` non-interactively, instead of leaving the webapp
+  stuck on a generic running status.
+- Add a timeout guard for support installer actions.
+
 ## 0.5.10
 
 - Install FFmpeg as part of the confirmed Piper installer action so AJRM Marine

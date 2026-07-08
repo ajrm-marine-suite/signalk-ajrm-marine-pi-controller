@@ -17,6 +17,7 @@ const elements = {
   shutdownButton: document.getElementById("shutdownButton"),
   piperStatus: document.getElementById("piperStatus"),
   piperLastAction: document.getElementById("piperLastAction"),
+  piperActionOutput: document.getElementById("piperActionOutput"),
   installPiperButton: document.getElementById("installPiperButton"),
   sdCardBackupStatus: document.getElementById("sdCardBackupStatus"),
   sdCardBackupLastAction: document.getElementById("sdCardBackupLastAction"),
@@ -80,7 +81,8 @@ function renderStatus(status) {
 
   const supportEnabled = Boolean(status.controls?.supportEnabled);
   renderPiperStatus(status.support?.piper || null);
-  elements.installPiperButton.disabled = !supportEnabled || status.support?.piper?.ok === true;
+  const piperRunning = status.support?.piper?.lastAction?.status === "running";
+  elements.installPiperButton.disabled = !supportEnabled || status.support?.piper?.ok === true || piperRunning;
   renderSdCardBackup(status.sdCardBackup || null);
 }
 
@@ -141,6 +143,8 @@ function renderPiperStatus(piper) {
   if (!piper) {
     elements.piperStatus.textContent = "Piper status unavailable.";
     elements.piperLastAction.textContent = "";
+    elements.piperActionOutput.hidden = true;
+    elements.piperActionOutput.textContent = "";
     return;
   }
   elements.piperStatus.textContent = piper.ok
@@ -148,8 +152,12 @@ function renderPiperStatus(piper) {
     : "Piper is not ready for AJRM Marine Audio.";
   const last = piper.lastAction;
   elements.piperLastAction.textContent = last
-    ? `Last action: ${last.status} at ${formatTime(last.finishedAt || last.startedAt)}`
+    ? `Last action: ${last.status} at ${formatTime(last.finishedAt || last.startedAt)}${last.error ? ` - ${last.error}` : ""}`
     : "";
+  const output = [last?.stdout, last?.stderr].filter(Boolean).join("\n").trim();
+  elements.piperActionOutput.hidden = !output;
+  elements.piperActionOutput.textContent = output;
+  if (last?.status === "running") scheduleRefresh(2);
 }
 
 function renderSdCardBackup(sdCardBackup) {

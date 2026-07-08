@@ -23,7 +23,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.10 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.11 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -53,7 +53,10 @@ journal so UPS shutdown tests can be reviewed after reboot.
   `en_GB-jenny_dioco-medium`. Set `PIPER_VERSION`, `PIPER_ASSET`, or
   `PIPER_DOWNLOAD_URL` in the command only when deliberately testing or pinning
   a specific release. Set `INSTALL_FFMPEG=0` only when FFmpeg is managed
-  separately and should not be installed by this action.
+  separately and should not be installed by this action. The webapp shows the
+  installer output in the Audio Support card. If Signal K cannot use `sudo`
+  without an interactive password prompt, the installer fails early with a
+  clear message because the web UI cannot answer password prompts.
 - **Enable SD-card backup**: allows the webapp to run a confirmed `rpi-clone`
   backup to the configured USB device.
 - **SD-card backup target label**: friendly name shown in the webapp, for

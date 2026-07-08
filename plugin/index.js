@@ -11,12 +11,15 @@ const DEFAULT_PIPER_VOICES = [
   "en_GB-alan-medium",
   "en_GB-jenny_dioco-medium",
 ];
+const DEFAULT_RPI_CLONE_COMMAND = "sudo /usr/local/sbin/rpi-clone";
 
 module.exports = function ajrmMarinePiController(app) {
   const plugin = {};
   let options = normalizeOptions({});
   let lastAction = null;
   let lastSupportAction = null;
+  let lastSdCardBackupAction = null;
+  let sdCardBackupProcess = null;
   let publishTimer = null;
   let shutdownWatchTimer = null;
   let lastObservedShutdownKey = null;
@@ -76,6 +79,41 @@ module.exports = function ajrmMarinePiController(app) {
         description:
           "Command run when the webapp or AJRM Marine Audio requests Piper installation.",
         default: DEFAULT_PIPER_INSTALL_COMMAND,
+      },
+      enableSdCardBackup: {
+        type: "boolean",
+        title: "Enable SD-card backup",
+        description:
+          "Allows a confirmed webapp action to run rpi-clone against the configured backup USB device.",
+        default: false,
+      },
+      sdCardBackupLabel: {
+        type: "string",
+        title: "SD-card backup target label",
+        description:
+          "Friendly name shown in the webapp for the configured SD-card backup USB device.",
+        default: "SD-card backup USB",
+      },
+      sdCardBackupSerial: {
+        type: "string",
+        title: "SD-card backup target serial",
+        description:
+          "Block-device serial number used to find the rpi-clone target even when its /dev/sdX name changes.",
+        default: "",
+      },
+      sdCardBackupFallbackDevice: {
+        type: "string",
+        title: "SD-card backup fallback device",
+        description:
+          "Optional fallback block device path such as /dev/sda. Serial matching is safer and takes priority.",
+        default: "",
+      },
+      rpiCloneCommand: {
+        type: "string",
+        title: "rpi-clone command",
+        description:
+          "Command used for SD-card backup. The detected target device name is appended automatically.",
+        default: DEFAULT_RPI_CLONE_COMMAND,
       },
       rebootCommand: {
         type: "string",
@@ -168,6 +206,10 @@ module.exports = function ajrmMarinePiController(app) {
         command: options.piperInstallCommand,
       });
     });
+
+    router.post("/actions/backup-sd-card", async (req, res) => {
+      await runSdCardBackupAction(req, res);
+    });
   };
 
   return plugin;
@@ -179,6 +221,13 @@ module.exports = function ajrmMarinePiController(app) {
       piperInstallCommand: String(
         value.piperInstallCommand || DEFAULT_PIPER_INSTALL_COMMAND,
       ),
+      enableSdCardBackup: value.enableSdCardBackup === true,
+      sdCardBackupLabel:
+        String(value.sdCardBackupLabel || "SD-card backup USB").trim() ||
+        "SD-card backup USB",
+      sdCardBackupSerial: String(value.sdCardBackupSerial || "").trim(),
+      sdCardBackupFallbackDevice: String(value.sdCardBackupFallbackDevice || "").trim(),
+      rpiCloneCommand: String(value.rpiCloneCommand || DEFAULT_RPI_CLONE_COMMAND).trim(),
       rebootCommand: String(value.rebootCommand || "sudo /sbin/reboot"),
       shutdownCommand: String(
         value.shutdownCommand || "sudo /sbin/shutdown -h now",
@@ -207,9 +256,10 @@ module.exports = function ajrmMarinePiController(app) {
   }
 
   async function buildStatus() {
-    const [disks, temperature] = await Promise.all([
+    const [disks, temperature, sdCardBackupTarget] = await Promise.all([
       Promise.all(options.diskPaths.map(readDiskStatus)),
       readCpuTemperature(),
+      readSdCardBackupTargetStatus(),
     ]);
 
     return {
@@ -243,9 +293,14 @@ module.exports = function ajrmMarinePiController(app) {
         publishTelemetry: options.publishTelemetry,
         publishIntervalSeconds: options.publishIntervalSeconds,
         shutdownWatchIntervalSeconds: options.shutdownWatchIntervalSeconds,
+        sdCardBackupEnabled: options.enableSdCardBackup,
       },
       support: {
         piper: readPiperStatus(),
+      },
+      sdCardBackup: {
+        target: sdCardBackupTarget,
+        lastAction: lastSdCardBackupAction,
       },
       lastAction,
       lastSupportAction,
@@ -565,6 +620,283 @@ module.exports = function ajrmMarinePiController(app) {
       installCommand: options.piperInstallCommand,
       lastAction: lastSupportAction?.action === "install-piper" ? lastSupportAction : null,
     };
+  }
+
+  async function readSdCardBackupTargetStatus() {
+    if (!options.enableSdCardBackup) {
+      return {
+        enabled: false,
+        label: options.sdCardBackupLabel,
+        configured: Boolean(options.sdCardBackupSerial || options.sdCardBackupFallbackDevice),
+        status: "disabled",
+        message: "SD-card backup is disabled in the plugin configuration",
+      };
+    }
+
+    try {
+      const { devices } = await readBlockDevices();
+      const bootDevice = await readBootBlockDevice();
+      const match = findSdCardBackupDevice(devices);
+      const configured = Boolean(options.sdCardBackupSerial || options.sdCardBackupFallbackDevice);
+      if (!configured) {
+        return {
+          enabled: true,
+          label: options.sdCardBackupLabel,
+          configured: false,
+          status: "unconfigured",
+          message: "Configure a backup target serial or fallback device before running rpi-clone",
+        };
+      }
+      if (!match) {
+        return {
+          enabled: true,
+          label: options.sdCardBackupLabel,
+          configured: true,
+          serial: options.sdCardBackupSerial,
+          fallbackDevice: options.sdCardBackupFallbackDevice,
+          status: "missing",
+          message: "Configured SD-card backup USB device was not found",
+        };
+      }
+      const safety = validateBackupTarget(match.path, bootDevice);
+      const children = match.children || [];
+      return {
+        enabled: true,
+        label: options.sdCardBackupLabel,
+        configured: true,
+        status: safety.ok ? "ok" : "unsafe",
+        message: safety.ok
+          ? `${options.sdCardBackupLabel} is visible as ${match.path}`
+          : safety.error,
+        path: match.path,
+        target: targetDeviceName(match.path),
+        model: match.model || null,
+        serial: match.serial || null,
+        sizeBytes: numericOrNull(match.size),
+        bootDevice,
+        children: children.map((child) => ({
+          name: child.name || null,
+          path: child.path || null,
+          fstype: child.fstype || null,
+          uuid: child.uuid || null,
+          sizeBytes: numericOrNull(child.size),
+          mountpoints: (child.mountpoints || []).filter(Boolean),
+        })),
+      };
+    } catch (error) {
+      return {
+        enabled: true,
+        label: options.sdCardBackupLabel,
+        configured: Boolean(options.sdCardBackupSerial || options.sdCardBackupFallbackDevice),
+        status: "error",
+        message: error.message,
+      };
+    }
+  }
+
+  async function runSdCardBackupAction(req, res) {
+    try {
+      if (!options.enableSdCardBackup) {
+        res.status(403).json({ ok: false, error: "SD-card backup is disabled" });
+        return;
+      }
+      if (req.body?.confirmed !== true) {
+        res.status(400).json({ ok: false, error: "Confirmation is required" });
+        return;
+      }
+      if (!options.rpiCloneCommand) {
+        res.status(400).json({ ok: false, error: "rpi-clone command is blank" });
+        return;
+      }
+      if (sdCardBackupProcess || ["starting", "running"].includes(lastSdCardBackupAction?.status)) {
+        res.status(409).json({
+          ok: false,
+          error: "SD-card backup is already running",
+          backup: lastSdCardBackupAction,
+        });
+        return;
+      }
+
+      const startedAt = new Date().toISOString();
+      lastSdCardBackupAction = {
+        action: "backup-sd-card",
+        label: options.sdCardBackupLabel,
+        startedAt,
+        status: "starting",
+        command: `Detecting ${options.sdCardBackupLabel}...`,
+        output: "",
+      };
+
+      startSdCardBackupWorker();
+      res.status(202).json({
+        ok: true,
+        action: "backup-sd-card",
+        startedAt,
+        status: "starting",
+      });
+    } catch (error) {
+      lastSdCardBackupAction = {
+        action: "backup-sd-card",
+        label: options.sdCardBackupLabel,
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        status: "failed",
+        error: error.message,
+      };
+      app.error(`[${plugin.id}] SD-card backup failed: ${error.stack || error.message}`);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  }
+
+  async function startSdCardBackupWorker() {
+    try {
+      const { devices } = await readBlockDevices();
+      const bootDevice = await readBootBlockDevice();
+      const match = findSdCardBackupDevice(devices);
+      if (!match?.path) {
+        throw new Error("Configured SD-card backup USB device was not found");
+      }
+      const safety = validateBackupTarget(match.path, bootDevice);
+      if (!safety.ok) {
+        throw new Error(safety.error);
+      }
+
+      const target = targetDeviceName(match.path);
+      const command = `${options.rpiCloneCommand} ${shellQuote(target)}`;
+      lastSdCardBackupAction = {
+        ...lastSdCardBackupAction,
+        status: "running",
+        command,
+        target,
+        devicePath: match.path,
+        model: match.model || null,
+        serial: match.serial || null,
+        bootDevice,
+        output: "",
+      };
+      logInfo(`SD-card backup started: ${command}`);
+      app.setPluginStatus(`SD-card backup started at ${lastSdCardBackupAction.startedAt}`);
+
+      const child = childProcess.spawn("/bin/sh", ["-c", command], {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      sdCardBackupProcess = child;
+      child.stdin.write("yes\n\n");
+      child.stdin.end();
+      child.stdout.on("data", appendSdCardBackupOutput);
+      child.stderr.on("data", appendSdCardBackupOutput);
+      child.on("error", (error) => {
+        sdCardBackupProcess = null;
+        lastSdCardBackupAction = {
+          ...lastSdCardBackupAction,
+          status: "failed",
+          finishedAt: new Date().toISOString(),
+          error: error.message,
+        };
+        app.error(`[${plugin.id}] SD-card backup failed: ${error.stack || error.message}`);
+      });
+      child.on("close", (code, signal) => {
+        sdCardBackupProcess = null;
+        const ok = code === 0;
+        lastSdCardBackupAction = {
+          ...lastSdCardBackupAction,
+          status: ok ? "completed" : "failed",
+          finishedAt: new Date().toISOString(),
+          exitCode: code,
+          signal,
+          error: ok ? null : `rpi-clone exited with code ${code}`,
+        };
+        logInfo(`SD-card backup ${ok ? "completed" : "failed"} with exit code ${code}`);
+        app.setPluginStatus(`SD-card backup ${ok ? "completed" : "failed"}`);
+      });
+    } catch (error) {
+      sdCardBackupProcess = null;
+      lastSdCardBackupAction = {
+        ...lastSdCardBackupAction,
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+        error: error.message,
+      };
+      app.error(`[${plugin.id}] SD-card backup failed: ${error.stack || error.message}`);
+    }
+  }
+
+  function appendSdCardBackupOutput(chunk) {
+    lastSdCardBackupAction = {
+      ...lastSdCardBackupAction,
+      output: truncateBufferedText(`${lastSdCardBackupAction?.output || ""}${chunk.toString()}`),
+    };
+  }
+
+  async function readBlockDevices() {
+    const stdout = await execFile("lsblk", [
+      "-J",
+      "-b",
+      "-o",
+      "NAME,PATH,MODEL,SERIAL,SIZE,TYPE,FSTYPE,UUID,MOUNTPOINTS",
+    ], { timeout: 5000 });
+    const parsed = JSON.parse(stdout);
+    return {
+      devices: flattenBlockDevices(parsed.blockdevices || []),
+    };
+  }
+
+  function flattenBlockDevices(devices) {
+    return (devices || []).flatMap((device) => [
+      device,
+      ...flattenBlockDevices(device.children || []),
+    ]);
+  }
+
+  function findSdCardBackupDevice(devices) {
+    const disks = (devices || []).filter((device) => device.type === "disk" && device.path);
+    if (options.sdCardBackupSerial) {
+      const bySerial = disks.find(
+        (device) => String(device.serial || "") === options.sdCardBackupSerial,
+      );
+      if (bySerial) return bySerial;
+    }
+    if (options.sdCardBackupFallbackDevice) {
+      return disks.find((device) => device.path === options.sdCardBackupFallbackDevice) || null;
+    }
+    return null;
+  }
+
+  async function readBootBlockDevice() {
+    const stdout = await execFile("df", ["-Pk", "/"], { timeout: 5000 });
+    const dataLine = stdout.trim().split(/\r?\n/).pop() || "";
+    const source = dataLine.trim().split(/\s+/)[0] || "";
+    return parentBlockDevice(source);
+  }
+
+  function parentBlockDevice(source) {
+    if (!source || !source.startsWith("/dev/")) return source || null;
+    let base = path.basename(source);
+    if (/^nvme\d+n\d+p\d+$/.test(base) || /^mmcblk\d+p\d+$/.test(base)) {
+      base = base.replace(/p\d+$/, "");
+    } else if (/\d+$/.test(base)) {
+      base = base.replace(/\d+$/, "");
+    }
+    return `/dev/${base}`;
+  }
+
+  function validateBackupTarget(devicePath, bootDevice) {
+    if (!devicePath || !devicePath.startsWith("/dev/")) {
+      return { ok: false, error: "Backup target is not a /dev block device" };
+    }
+    if (bootDevice && devicePath === bootDevice) {
+      return { ok: false, error: `Refusing to use boot device ${bootDevice} as backup target` };
+    }
+    return { ok: true };
+  }
+
+  function targetDeviceName(devicePath) {
+    return path.basename(devicePath || "");
+  }
+
+  function numericOrNull(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
   }
 
   function checkExecutable(command) {

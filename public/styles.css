@@ -226,6 +226,18 @@ dd {
   margin-top: 8px;
 }
 
+.action-output {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 8px;
+  background: #020617;
+  color: #d9edff;
+  font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 label {
   display: grid;
   gap: 6px;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9
+
+- Add a configured SD-card backup USB target and confirmed `rpi-clone`
+  action, including target detection, boot-device protection, and recent
+  command output in the webapp.
+
 ## 0.5.5
 
 - Fix the Piper installer cleanup trap so a successful install is not reported

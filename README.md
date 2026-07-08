@@ -7,6 +7,8 @@ It provides:
 - Pi uptime, load, memory, disk space, CPU temperature, network address, and Signal K process information.
 - Reboot and shutdown buttons, with confirmation.
 - Piper status and a confirmed Piper installer action for AJRM Marine Audio.
+- Configured SD-card backup target detection and a confirmed `rpi-clone`
+  action for refreshing a Nemo SD-card clone.
 - Configurable system commands so it can work on Raspberry Pi OS or another Linux distribution.
 
 ## Safety Notice
@@ -21,7 +23,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.8 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.9 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -51,6 +53,18 @@ journal so UPS shutdown tests can be reviewed after reboot.
   `en_GB-jenny_dioco-medium`. Set
   `PIPER_VERSION`, `PIPER_ASSET`, or `PIPER_DOWNLOAD_URL` in the command only
   when deliberately testing or pinning a specific release.
+- **Enable SD-card backup**: allows the webapp to run a confirmed `rpi-clone`
+  backup to the configured USB device.
+- **SD-card backup target label**: friendly name shown in the webapp, for
+  example `Nemo SD-card backup USB`.
+- **SD-card backup target serial**: preferred block-device serial number used
+  to find the backup USB stick even when its `/dev/sdX` name changes.
+- **SD-card backup fallback device**: optional fallback path such as `/dev/sda`.
+  Use this only when the serial is unavailable. The plugin refuses to use the
+  current boot device as the backup target.
+- **rpi-clone command**: defaults to `sudo /usr/local/sbin/rpi-clone`. The
+  plugin appends the detected target device name automatically and sends `yes`
+  to the `rpi-clone` confirmation prompt after the web confirmation.
 - **Reboot command**: defaults to `sudo /sbin/reboot`.
 - **Shutdown command**: defaults to `sudo /sbin/shutdown -h now`.
 - **Power action grace period**: defaults to ten seconds. AJRM Marine Pi Controller
@@ -83,7 +97,7 @@ sudo visudo -f /etc/sudoers.d/signalk-ajrm-marine-pi-controller
 Add:
 
 ```text
-pi ALL=(root) NOPASSWD: /sbin/reboot, /sbin/shutdown, /usr/bin/mkdir, /usr/bin/tar, /usr/bin/ln
+pi ALL=(root) NOPASSWD: /sbin/reboot, /sbin/shutdown, /usr/bin/mkdir, /usr/bin/tar, /usr/bin/ln, /usr/local/sbin/rpi-clone
 ```
 
 Save, then test carefully:
@@ -92,6 +106,7 @@ Save, then test carefully:
 sudo -n /sbin/reboot --help
 sudo -n /sbin/shutdown --help
 sudo -n /usr/bin/mkdir --help
+sudo -n /usr/local/sbin/rpi-clone --help
 ```
 
 Those test commands should print help and should not ask for a password.
@@ -104,6 +119,7 @@ The plugin exposes:
 - `POST /plugins/signalk-ajrm-marine-pi-controller/actions/reboot`
 - `POST /plugins/signalk-ajrm-marine-pi-controller/actions/shutdown`
 - `POST /plugins/signalk-ajrm-marine-pi-controller/actions/install-piper`
+- `POST /plugins/signalk-ajrm-marine-pi-controller/actions/backup-sd-card`
 
 The webapp asks for confirmation before sending a power action. Power action
 requests require JSON:
@@ -125,4 +141,3 @@ Development assistance: OpenAI Codex helped with code generation, refactoring, a
 This software is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). You may use, study, share, and modify it under that licence. If you modify it and make it available to users over a network, the corresponding source code must also be made available under the AGPL.
 
 Commercial licensing is available by arrangement for organisations that want different terms.
-

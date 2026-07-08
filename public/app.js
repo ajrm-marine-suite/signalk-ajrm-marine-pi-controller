@@ -18,6 +18,10 @@ const elements = {
   piperStatus: document.getElementById("piperStatus"),
   piperLastAction: document.getElementById("piperLastAction"),
   installPiperButton: document.getElementById("installPiperButton"),
+  sdCardBackupStatus: document.getElementById("sdCardBackupStatus"),
+  sdCardBackupLastAction: document.getElementById("sdCardBackupLastAction"),
+  sdCardBackupOutput: document.getElementById("sdCardBackupOutput"),
+  backupSdCardButton: document.getElementById("backupSdCardButton"),
 };
 
 let refreshTimer = null;
@@ -26,6 +30,7 @@ elements.refreshButton.addEventListener("click", refreshStatus);
 elements.rebootButton.addEventListener("click", () => runAction("reboot"));
 elements.shutdownButton.addEventListener("click", () => runAction("shutdown"));
 elements.installPiperButton.addEventListener("click", () => runSupportAction("install-piper"));
+elements.backupSdCardButton.addEventListener("click", runSdCardBackupAction);
 
 refreshStatus();
 
@@ -76,6 +81,7 @@ function renderStatus(status) {
   const supportEnabled = Boolean(status.controls?.supportEnabled);
   renderPiperStatus(status.support?.piper || null);
   elements.installPiperButton.disabled = !supportEnabled || status.support?.piper?.ok === true;
+  renderSdCardBackup(status.sdCardBackup || null);
 }
 
 function renderDisks(disks) {
@@ -144,6 +150,52 @@ function renderPiperStatus(piper) {
   elements.piperLastAction.textContent = last
     ? `Last action: ${last.status} at ${formatTime(last.finishedAt || last.startedAt)}`
     : "";
+}
+
+function renderSdCardBackup(sdCardBackup) {
+  const target = sdCardBackup?.target || null;
+  const last = sdCardBackup?.lastAction || null;
+  const running = ["starting", "running"].includes(last?.status);
+  const enabled = Boolean(target?.enabled);
+  const ready = target?.status === "ok";
+
+  if (!target) {
+    elements.sdCardBackupStatus.textContent = "SD-card backup status unavailable.";
+  } else if (!enabled) {
+    elements.sdCardBackupStatus.textContent = target.message || "SD-card backup is disabled.";
+  } else if (target.status === "ok") {
+    elements.sdCardBackupStatus.textContent =
+      `${target.label || "Backup USB"} ready as ${target.path}` +
+      `${target.model ? ` (${target.model})` : ""}` +
+      `${target.sizeBytes ? `, ${formatBytes(target.sizeBytes)}` : ""}.`;
+  } else {
+    elements.sdCardBackupStatus.textContent = target.message || "Backup target is not ready.";
+  }
+
+  elements.sdCardBackupLastAction.textContent = last
+    ? `Last action: ${last.status} at ${formatTime(last.finishedAt || last.startedAt)}${last.error ? ` - ${last.error}` : ""}`
+    : "";
+  const output = String(last?.output || "").trim();
+  elements.sdCardBackupOutput.hidden = !output;
+  elements.sdCardBackupOutput.textContent = output;
+  elements.backupSdCardButton.disabled = !enabled || !ready || running;
+
+  if (running) scheduleRefresh(2);
+}
+
+async function runSdCardBackupAction() {
+  if (!window.confirm("Run rpi-clone now? The configured backup USB device will be detected and overwritten.")) return;
+
+  try {
+    const result = await postJson(
+      "../plugins/signalk-ajrm-marine-pi-controller/actions/backup-sd-card",
+      { confirmed: true },
+    );
+    setBanner(`SD-card backup requested at ${new Date(result.startedAt).toLocaleTimeString()}`);
+    scheduleRefresh(2);
+  } catch (error) {
+    setBanner(error.message, true);
+  }
 }
 
 async function getJson(url) {

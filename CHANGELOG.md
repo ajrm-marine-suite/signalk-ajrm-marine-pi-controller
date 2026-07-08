@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.10
+
+- Install FFmpeg as part of the confirmed Piper installer action so AJRM Marine
+  Audio has the full server-side MP3 render chain after one Pi Controller
+  support action.
+
 ## 0.5.9
 
 - Add a configured SD-card backup USB target and confirmed `rpi-clone`

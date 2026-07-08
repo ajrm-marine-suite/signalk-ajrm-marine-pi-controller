@@ -8,6 +8,7 @@ PIPER_ASSET="${PIPER_ASSET:-}"
 PIPER_DOWNLOAD_URL="${PIPER_DOWNLOAD_URL:-}"
 PIPER_TMP_DIR=""
 PIPER_VOICES_BASE_URL="${PIPER_VOICES_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0}"
+INSTALL_FFMPEG="${INSTALL_FFMPEG:-1}"
 
 PIPER_VOICES=(
   "en_GB-alba-medium:en/en_GB/alba/medium"
@@ -28,6 +29,25 @@ require_command() {
     printf 'ERROR: required command not found: %s\n' "$1" >&2
     exit 1
   fi
+}
+
+install_ffmpeg() {
+  if [[ "$INSTALL_FFMPEG" == "0" || "$INSTALL_FFMPEG" == "false" ]]; then
+    log "Skipping FFmpeg install because INSTALL_FFMPEG=${INSTALL_FFMPEG}"
+    return
+  fi
+  if command -v ffmpeg >/dev/null 2>&1; then
+    log "FFmpeg is already installed: $(command -v ffmpeg)"
+    return
+  fi
+  require_command sudo
+  if ! command -v apt-get >/dev/null 2>&1; then
+    warn "FFmpeg is missing and apt-get is not available. Install FFmpeg manually, or set INSTALL_FFMPEG=0 to skip this check."
+    exit 4
+  fi
+  log "Installing FFmpeg with apt-get"
+  sudo apt-get update
+  sudo apt-get install -y ffmpeg
 }
 
 install_voice() {
@@ -124,6 +144,8 @@ install_piper() {
       exit 2
       ;;
   esac
+
+  install_ffmpeg
 
   log "Finding Piper ${PIPER_VERSION} release for ${arch}"
   tmp="$(mktemp -d)"

@@ -23,7 +23,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.9 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.10 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -47,12 +47,13 @@ journal so UPS shutdown tests can be reviewed after reboot.
   installing Piper for AJRM Marine Audio.
 - **Piper install command**: defaults to the package's bundled
   `scripts/install-piper.sh`, which installs the latest Piper GitHub release
-  and the default British English voice set on 64-bit Linux. Voice models are
-  stored as `~/piper-voices/<voice-id>/<voice-id>.onnx`, currently including
-  `en_GB-alba-medium`, `en_GB-alan-medium`, and
-  `en_GB-jenny_dioco-medium`. Set
-  `PIPER_VERSION`, `PIPER_ASSET`, or `PIPER_DOWNLOAD_URL` in the command only
-  when deliberately testing or pinning a specific release.
+  FFmpeg, and the default British English voice set on 64-bit Linux. Voice
+  models are stored as `~/piper-voices/<voice-id>/<voice-id>.onnx`, currently
+  including `en_GB-alba-medium`, `en_GB-alan-medium`, and
+  `en_GB-jenny_dioco-medium`. Set `PIPER_VERSION`, `PIPER_ASSET`, or
+  `PIPER_DOWNLOAD_URL` in the command only when deliberately testing or pinning
+  a specific release. Set `INSTALL_FFMPEG=0` only when FFmpeg is managed
+  separately and should not be installed by this action.
 - **Enable SD-card backup**: allows the webapp to run a confirmed `rpi-clone`
   backup to the configured USB device.
 - **SD-card backup target label**: friendly name shown in the webapp, for
@@ -97,7 +98,7 @@ sudo visudo -f /etc/sudoers.d/signalk-ajrm-marine-pi-controller
 Add:
 
 ```text
-pi ALL=(root) NOPASSWD: /sbin/reboot, /sbin/shutdown, /usr/bin/mkdir, /usr/bin/tar, /usr/bin/ln, /usr/local/sbin/rpi-clone
+pi ALL=(root) NOPASSWD: /sbin/reboot, /sbin/shutdown, /usr/bin/mkdir, /usr/bin/tar, /usr/bin/ln, /usr/bin/apt-get, /usr/local/sbin/rpi-clone
 ```
 
 Save, then test carefully:
@@ -106,6 +107,7 @@ Save, then test carefully:
 sudo -n /sbin/reboot --help
 sudo -n /sbin/shutdown --help
 sudo -n /usr/bin/mkdir --help
+sudo -n /usr/bin/apt-get --help
 sudo -n /usr/local/sbin/rpi-clone --help
 ```
 

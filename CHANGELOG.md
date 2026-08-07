@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Correct the install command and consolidate Piper and power-intent guidance
+  around the current release.
+
 ## 0.5.12
 
 - Show explicit rebooting/shutting-down messages after confirmed Pi Controller

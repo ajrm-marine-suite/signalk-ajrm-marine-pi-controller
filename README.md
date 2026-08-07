@@ -23,7 +23,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.5.12 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.6.1 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -32,15 +32,6 @@ Open Signal K's webapps page and choose **AJRM Marine Pi Controller**.
 ## Signal K Config
 
 The plugin config includes:
-
-Version `0.5.7` installs the default Piper voice catalogue in nested voice
-directories and makes Alba the preferred voice: Alba, Alan, and Jenny Dioco.
-
-Version `1.2.5` adds Piper readiness reporting and a confirmed support action
-for installing Piper and the default voice for AJRM Marine Audio.
-
-Version `1.2.4` writes explicit power-intent breadcrumbs to the Signal K/systemd
-journal so UPS shutdown tests can be reviewed after reboot.
 
 - **Enable power controls**: shows and allows the Reboot and Shutdown buttons.
 - **Enable support installers**: allows confirmed support actions such as
@@ -79,6 +70,11 @@ journal so UPS shutdown tests can be reviewed after reboot.
   `powerDown` and publishes the same power intent for AJRM Marine apps.
 - **Disk paths to monitor**: defaults to `/`.
 - **Status refresh interval**: defaults to five seconds.
+
+The support installer places the default Piper voice catalogue (Alba, Alan,
+and Jenny Dioco) in nested voice directories and reports Audio readiness.
+Power actions write intent breadcrumbs to the Signal K/systemd journal so UPS
+and manual shutdown tests can be reviewed after reboot.
 
 External tools can stay standalone by scheduling a normal OS shutdown, for
 example:

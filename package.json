@@ -1,10 +1,10 @@
 {
   "name": "signalk-ajrm-marine-pi-controller",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Raspberry Pi control and dependency helper for AJRM Marine Suite.",
   "main": "plugin/index.js",
   "scripts": {
-    "test": "node --check plugin/index.js && node --check public/app.js"
+    "test": "node --check plugin/index.js && node --check public/app.js && node --test"
   },
   "keywords": [
     "signalk-node-server-plugin",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "files": [
     "plugin",

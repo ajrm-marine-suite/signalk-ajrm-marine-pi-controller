@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const packageInfo = require("../package.json");
+const openApi = require("./openapi.json");
 
 const PACKAGE_ROOT = path.dirname(__dirname);
 const DEFAULT_PIPER_INSTALL_COMMAND = `bash ${shellQuote(path.join(PACKAGE_ROOT, "scripts", "install-piper.sh"))}`;
@@ -21,40 +22,70 @@ module.exports = function ajrmMarinePiController(app) {
   let lastSupportAction = null;
   let lastSdCardBackupAction = null;
   let sdCardBackupProcess = null;
+  let supportProcess = null;
+  let supportActionTimeout = null;
   let publishTimer = null;
   let shutdownWatchTimer = null;
+  const powerActionTimers = new Set();
   let lastObservedShutdownKey = null;
+  let running = false;
+  let lifecycleGeneration = 0;
 
   plugin.id = "signalk-ajrm-marine-pi-controller";
   plugin.name = "AJRM Marine Pi Controller";
   plugin.description =
     "Simple Signal K webapp for monitoring and controlling a Raspberry Pi.";
+  plugin.version = packageInfo.version;
+  plugin.getOpenApi = () => openApi;
 
   plugin.start = (pluginOptions = {}) => {
+    plugin.stop();
+    running = true;
+    const generation = ++lifecycleGeneration;
     options = normalizeOptions(pluginOptions);
-    publishTelemetry().catch((error) => {
+    lastAction = null;
+    lastSupportAction = null;
+    lastSdCardBackupAction = null;
+    lastObservedShutdownKey = null;
+    publishTelemetry(generation).catch((error) => {
       app.error(`[${plugin.id}] telemetry publish failed: ${error.stack || error.message}`);
     });
     publishTimer = setInterval(() => {
-      publishTelemetry().catch((error) => {
+      publishTelemetry(generation).catch((error) => {
         app.error(`[${plugin.id}] telemetry publish failed: ${error.stack || error.message}`);
       });
     }, options.publishIntervalSeconds * 1000);
+    publishTimer.unref?.();
     shutdownWatchTimer = setInterval(() => {
-      observeScheduledShutdown().catch((error) => {
+      observeScheduledShutdown(generation).catch((error) => {
         app.debug?.(`[${plugin.id}] scheduled shutdown check failed: ${error.message || error}`);
       });
     }, options.shutdownWatchIntervalSeconds * 1000);
     shutdownWatchTimer.unref?.();
-    observeScheduledShutdown().catch(() => {});
+    observeScheduledShutdown(generation).catch(() => {});
     app.setPluginStatus(`Started v${packageInfo.version}`);
   };
 
   plugin.stop = () => {
+    const wasRunning = running;
+    running = false;
+    lifecycleGeneration += 1;
     clearInterval(publishTimer);
     clearInterval(shutdownWatchTimer);
     publishTimer = null;
     shutdownWatchTimer = null;
+    for (const timer of powerActionTimers) clearTimeout(timer);
+    powerActionTimers.clear();
+    if (supportActionTimeout) clearTimeout(supportActionTimeout);
+    supportActionTimeout = null;
+    supportProcess?.kill("SIGTERM");
+    supportProcess = null;
+    sdCardBackupProcess?.kill("SIGTERM");
+    sdCardBackupProcess = null;
+    if (wasRunning) {
+      retractTelemetry();
+      app.setPluginStatus?.("Stopped");
+    }
   };
 
   plugin.schema = {
@@ -154,7 +185,7 @@ module.exports = function ajrmMarinePiController(app) {
         type: "boolean",
         title: "Publish system telemetry to Signal K",
         description:
-          "Publishes Raspberry Pi / host telemetry under vessels.self.plugins.ajrmMarinePiController.system so AJRM Marine Logger, Capture, and Snapshot can capture it.",
+          "Publishes Raspberry Pi / host telemetry under vessels.self.plugins.ajrmMarinePiController.system so Capture and Snapshot can record it.",
         default: true,
       },
       publishIntervalSeconds: {
@@ -186,31 +217,31 @@ module.exports = function ajrmMarinePiController(app) {
       }
     });
 
-    router.post("/actions/reboot", async (req, res) => {
+    router.post("/actions/reboot", requireWriteAccess(async (req, res) => {
       await runPowerAction(req, res, {
         action: "reboot",
         command: options.rebootCommand,
       });
-    });
+    }));
 
-    router.post("/actions/shutdown", async (req, res) => {
+    router.post("/actions/shutdown", requireWriteAccess(async (req, res) => {
       await runPowerAction(req, res, {
         action: "shutdown",
         command: options.shutdownCommand,
       });
-    });
+    }));
 
-    router.post("/actions/install-piper", async (req, res) => {
+    router.post("/actions/install-piper", requireWriteAccess(async (req, res) => {
       await runSupportAction(req, res, {
         action: "install-piper",
         label: "Piper install",
         command: options.piperInstallCommand,
       });
-    });
+    }));
 
-    router.post("/actions/backup-sd-card", async (req, res) => {
+    router.post("/actions/backup-sd-card", requireWriteAccess(async (req, res) => {
       await runSdCardBackupAction(req, res);
-    });
+    }));
   };
 
   return plugin;
@@ -308,9 +339,10 @@ module.exports = function ajrmMarinePiController(app) {
     };
   }
 
-  async function publishTelemetry() {
+  async function publishTelemetry(generation = lifecycleGeneration) {
     if (!options.publishTelemetry) return;
     const status = await buildStatus();
+    if (!running || generation !== lifecycleGeneration) return;
     const values = [
       { path: "plugins.ajrmMarinePiController.version", value: packageInfo.version },
       { path: "plugins.ajrmMarinePiController.system.hostname", value: status.hostname },
@@ -366,6 +398,31 @@ module.exports = function ajrmMarinePiController(app) {
     });
   }
 
+  function retractTelemetry() {
+    app.handleMessage?.(plugin.id, {
+      context: "vessels.self",
+      updates: [{
+        source: { label: plugin.id },
+        timestamp: new Date().toISOString(),
+        values: [{ path: "plugins.ajrmMarinePiController", value: null }],
+      }],
+    });
+  }
+
+  function requireWriteAccess(handler) {
+    return function writeAccessHandler(req, res) {
+      const permission = req.skPrincipal?.permissions;
+      if (permission === "admin" || permission === "readwrite" ||
+          (permission === undefined && req.skIsAuthenticated !== false)) {
+        return handler(req, res);
+      }
+      return res.status(403).json({
+        ok: false,
+        error: "Signal K read/write or administrator access required",
+      });
+    };
+  }
+
   function celsiusToKelvin(value) {
     return Math.round((Number(value) + 273.15) * 100) / 100;
   }
@@ -381,7 +438,7 @@ module.exports = function ajrmMarinePiController(app) {
 
   async function readDiskStatus(pathName) {
     try {
-      const stdout = await execFile("df", ["-Pk", pathName], { timeout: 5000 });
+      const stdout = await execFile("df", ["-Pk", "--", pathName], { timeout: 5000 });
       const lines = stdout.trim().split(/\r?\n/);
       const dataLine = lines[lines.length - 1] || "";
       const parts = dataLine.trim().split(/\s+/);
@@ -488,6 +545,10 @@ module.exports = function ajrmMarinePiController(app) {
         res.status(400).json({ ok: false, error: "Command is blank" });
         return;
       }
+      if (powerActionTimers.size > 0 || ["waiting", "running"].includes(lastAction?.status)) {
+        res.status(409).json({ ok: false, error: "A power action is already scheduled" });
+        return;
+      }
 
       const startedAt = new Date().toISOString();
       const graceSeconds = options.powerActionGraceSeconds;
@@ -500,11 +561,13 @@ module.exports = function ajrmMarinePiController(app) {
       app.debug(`[${plugin.id}] ${action} requested; running command at ${runAt}: ${command}`);
 
       const timer = setTimeout(() => {
+        powerActionTimers.delete(timer);
         lastAction = { ...scheduledAction, status: "running", runningAt: new Date().toISOString() };
         publishPowerIntent(lastAction);
         logInfo(`${action} command starting: ${command}`);
         detachedShell(command);
       }, graceSeconds * 1000);
+      powerActionTimers.add(timer);
       timer.unref?.();
       res.json({ ok: true, action, startedAt, runAt, graceSeconds });
     } catch (error) {
@@ -534,6 +597,10 @@ module.exports = function ajrmMarinePiController(app) {
         res.status(400).json({ ok: false, error: "Command is blank" });
         return;
       }
+      if (supportProcess || lastSupportAction?.status === "running") {
+        res.status(409).json({ ok: false, error: "A support action is already running" });
+        return;
+      }
 
       const startedAt = new Date().toISOString();
       lastSupportAction = {
@@ -548,6 +615,8 @@ module.exports = function ajrmMarinePiController(app) {
       const child = childProcess.spawn("/bin/sh", ["-c", command], {
         stdio: ["ignore", "pipe", "pipe"],
       });
+      const actionGeneration = lifecycleGeneration;
+      supportProcess = child;
       let stdout = "";
       let stderr = "";
       let settled = false;
@@ -561,7 +630,10 @@ module.exports = function ajrmMarinePiController(app) {
         }
       };
       const timeout = setTimeout(() => {
+        if (!running || actionGeneration !== lifecycleGeneration) return;
         settled = true;
+        supportActionTimeout = null;
+        supportProcess = null;
         const error = `${label} timed out after ${Math.round(SUPPORT_ACTION_TIMEOUT_MS / 60000)} minutes`;
         lastSupportAction = {
           ...lastSupportAction,
@@ -575,6 +647,7 @@ module.exports = function ajrmMarinePiController(app) {
         app.error(`[${plugin.id}] ${error}`);
         app.setPluginStatus(`${label} failed: timed out`);
       }, SUPPORT_ACTION_TIMEOUT_MS);
+      supportActionTimeout = timeout;
       timeout.unref?.();
       child.stdout.on("data", (chunk) => {
         stdout = truncateBufferedText(stdout + chunk.toString());
@@ -586,6 +659,9 @@ module.exports = function ajrmMarinePiController(app) {
       });
       child.on("error", (error) => {
         clearTimeout(timeout);
+        supportActionTimeout = null;
+        supportProcess = null;
+        if (!running || actionGeneration !== lifecycleGeneration) return;
         if (settled) return;
         settled = true;
         lastSupportAction = {
@@ -600,6 +676,9 @@ module.exports = function ajrmMarinePiController(app) {
       });
       child.on("close", (code, signal) => {
         clearTimeout(timeout);
+        supportActionTimeout = null;
+        supportProcess = null;
+        if (!running || actionGeneration !== lifecycleGeneration) return;
         if (settled) return;
         settled = true;
         const ok = code === 0;
@@ -784,6 +863,7 @@ module.exports = function ajrmMarinePiController(app) {
   }
 
   async function startSdCardBackupWorker() {
+    const actionGeneration = lifecycleGeneration;
     try {
       const { devices } = await readBlockDevices();
       const bootDevice = await readBootBlockDevice();
@@ -818,10 +898,15 @@ module.exports = function ajrmMarinePiController(app) {
       sdCardBackupProcess = child;
       child.stdin.write("yes\n\n");
       child.stdin.end();
-      child.stdout.on("data", appendSdCardBackupOutput);
-      child.stderr.on("data", appendSdCardBackupOutput);
+      child.stdout.on("data", (chunk) => {
+        if (running && actionGeneration === lifecycleGeneration) appendSdCardBackupOutput(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        if (running && actionGeneration === lifecycleGeneration) appendSdCardBackupOutput(chunk);
+      });
       child.on("error", (error) => {
         sdCardBackupProcess = null;
+        if (!running || actionGeneration !== lifecycleGeneration) return;
         lastSdCardBackupAction = {
           ...lastSdCardBackupAction,
           status: "failed",
@@ -832,6 +917,7 @@ module.exports = function ajrmMarinePiController(app) {
       });
       child.on("close", (code, signal) => {
         sdCardBackupProcess = null;
+        if (!running || actionGeneration !== lifecycleGeneration) return;
         const ok = code === 0;
         lastSdCardBackupAction = {
           ...lastSdCardBackupAction,
@@ -846,6 +932,7 @@ module.exports = function ajrmMarinePiController(app) {
       });
     } catch (error) {
       sdCardBackupProcess = null;
+      if (!running || actionGeneration !== lifecycleGeneration) return;
       lastSdCardBackupAction = {
         ...lastSdCardBackupAction,
         status: "failed",
@@ -984,8 +1071,9 @@ module.exports = function ajrmMarinePiController(app) {
     });
   }
 
-  async function observeScheduledShutdown() {
+  async function observeScheduledShutdown(generation = lifecycleGeneration) {
     const scheduled = await readScheduledShutdown();
+    if (!running || generation !== lifecycleGeneration) return;
     if (!scheduled) {
       lastObservedShutdownKey = null;
       return;
@@ -1071,6 +1159,9 @@ module.exports = function ajrmMarinePiController(app) {
     const child = childProcess.spawn("/bin/sh", ["-c", command], {
       detached: true,
       stdio: "ignore",
+    });
+    child.on("error", (error) => {
+      app.error?.(`[${plugin.id}] unable to start power command: ${error.message}`);
     });
     child.unref();
   }

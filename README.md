@@ -13,7 +13,7 @@ It provides:
 
 ## Safety Notice
 
-This software is Alpha Release and has not been tested in live environments and must not be relied upon for navigation or safety. The Authors do not accept any responsibility for loss or damage as a result of using this software.
+This software is a public beta and must not be relied upon for navigation or safety. The Authors do not accept any responsibility for loss or damage as a result of using this software.
 
 The shutdown and restart controls can stop the Signal K server and power off the Pi. Keep this plugin available only on trusted boat networks.
 
@@ -23,7 +23,7 @@ On the Pi:
 
 ```bash
 cd ~/.signalk
-npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.6.1 --omit=dev --no-package-lock
+npm install git+https://github.com/ajrm-marine-suite/signalk-ajrm-marine-pi-controller.git#v0.7.0 --omit=dev --no-package-lock
 sudo systemctl restart signalk
 ```
 
@@ -122,6 +122,11 @@ The plugin exposes:
 - `POST /plugins/signalk-ajrm-marine-pi-controller/actions/install-piper`
 - `POST /plugins/signalk-ajrm-marine-pi-controller/actions/backup-sd-card`
 
+Every POST action requires Signal K read/write or administrator access as well
+as the feature-specific enable switch and explicit confirmation. Only the
+read-only status route is available without write permission. The full route
+contract is also exposed through Signal K OpenAPI discovery.
+
 The webapp asks for confirmation before sending a power action. Power action
 requests require JSON:
 
@@ -130,6 +135,10 @@ requests require JSON:
   "confirmed": true
 }
 ```
+
+Pi Controller owns at most one pending power action, one support installer and
+one SD-card backup process. Disabling or restarting the plugin cancels its
+timers and child processes and retracts its retained telemetry.
 
 
 ## Public Beta

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+- Require Signal K read/write or administrator access on reboot, shutdown,
+  Piper installation and SD-card backup routes; retain explicit confirmation
+  and feature-enable gates as independent safeguards.
+- Publish an OpenAPI 3.1 contract matching all five HTTP routes and declare the
+  suite Node.js 20 runtime baseline.
+- Make restart lifecycle-safe: release duplicate timers, cancel pending power
+  actions and owned child processes, ignore late async work and retract retained
+  telemetry on stop.
+- Prevent concurrent power/support actions, validate `df` paths as operands,
+  and handle detached command launch errors without crashing Signal K.
+- Add executable tests for access control, confirmation and OpenAPI parity.
+
 ## 0.6.1
 
 - Correct the install command and consolidate Piper and power-intent guidance

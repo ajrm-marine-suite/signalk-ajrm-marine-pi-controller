@@ -8,7 +8,7 @@ It provides:
 - Reboot and shutdown buttons, with confirmation.
 - Piper status and a confirmed Piper installer action for AJRM Marine Audio.
 - Configured SD-card backup target detection and a confirmed `rpi-clone`
-  action for refreshing a Nemo SD-card clone.
+  action for refreshing the boat Pi's SD-card clone.
 - Configurable system commands so it can work on Raspberry Pi OS or another Linux distribution.
 
 ## Safety Notice
@@ -51,7 +51,7 @@ The plugin config includes:
 - **Enable SD-card backup**: allows the webapp to run a confirmed `rpi-clone`
   backup to the configured USB device.
 - **SD-card backup target label**: friendly name shown in the webapp, for
-  example `Nemo SD-card backup USB`.
+  example `Boat Pi SD-card backup USB`.
 - **SD-card backup target serial**: preferred block-device serial number used
   to find the backup USB stick even when its `/dev/sdX` name changes.
 - **SD-card backup fallback device**: optional fallback path such as `/dev/sda`.

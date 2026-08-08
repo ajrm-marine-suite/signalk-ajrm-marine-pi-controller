@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- Replace the boat-specific SD-card clone name in public backup documentation
+  with a generic boat Pi example.
+
 ## 0.7.0
 
 - Require Signal K read/write or administrator access on reboot, shutdown,

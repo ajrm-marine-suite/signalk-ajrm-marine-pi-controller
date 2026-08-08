@@ -1,3 +1,7 @@
+/**
+ * Browser entry point for AJRM Marine Pi Controller; binds operator controls and renders server state.
+ */
+
 const elements = {
   banner: document.getElementById("statusBanner"),
   refreshButton: document.getElementById("refreshButton"),

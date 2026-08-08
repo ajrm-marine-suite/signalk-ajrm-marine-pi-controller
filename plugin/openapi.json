@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "AJRM Marine Pi Controller API",
-    "version": "0.7.0",
+    "version": "0.7.2",
     "description": "Read Raspberry Pi health and request explicitly enabled host support actions."
   },
   "servers": [{ "url": "/plugins/signalk-ajrm-marine-pi-controller" }],

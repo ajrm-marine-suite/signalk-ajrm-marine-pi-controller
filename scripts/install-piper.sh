@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Installs the operating-system support required by AJRM Marine Pi Controller.
+
 set -Eeuo pipefail
 
 PIPER_VERSION="${PIPER_VERSION:-latest}"
